@@ -5221,20 +5221,22 @@ function animate() {
   const playerTargetTiltZ = THREE.MathUtils.clamp(-smoothMouseVelX * tiltSensitivity, -maxTiltZ, maxTiltZ);
   const playerTargetTiltX = THREE.MathUtils.clamp(smoothMouseVelY * tiltSensitivity, -maxTiltX, maxTiltX);
 
-  // Free Y rotation: mouse X position freely rotates the paddle face left/right
-  const maxTiltY = Math.PI / 2;  // ±90° swing range
-  const playerTargetTiltY = THREE.MathUtils.clamp(mouseX * maxTiltY, -maxTiltY, maxTiltY);
+  // Face towards the center of the table based on horizontal position
+  const maxTiltY = 0.5; // Limit maximum inward angle
+  const playerTargetTiltY = THREE.MathUtils.clamp(-playerPaddle.position.x * 0.12, -maxTiltY, maxTiltY);
 
-  // No fixed default — paddle faces wherever you aim
   playerPaddle.rotation.y += (playerTargetTiltY - playerPaddle.rotation.y) * 0.15;
   playerPaddle.rotation.z += (playerTargetTiltZ - playerPaddle.rotation.z) * 0.2;
   playerPaddle.rotation.x += (playerTargetTiltX - playerPaddle.rotation.x) * 0.2;
 
-  // AI paddle tilt mirrors its movement
+  // AI paddle tilt mirrors its movement and faces inward
   const aiTiltZ = (aiPaddle.position.x - prevAiX) * 0.5;
   const aiTiltX = (aiPaddle.position.z - prevPlayerZ) * -0.3;
+  const aiTargetTiltY = THREE.MathUtils.clamp(aiPaddle.position.x * 0.12, -maxTiltY, maxTiltY);
+  
   aiPaddle.rotation.z += (aiTiltZ - aiPaddle.rotation.z) * 0.15;
   aiPaddle.rotation.x += (aiTiltX - aiPaddle.rotation.x) * 0.15;
+  aiPaddle.rotation.y += (aiTargetTiltY - aiPaddle.rotation.y) * 0.15;
 
   prevPlayerX = playerPaddle.position.x;
   prevAiX = aiPaddle.position.x;
