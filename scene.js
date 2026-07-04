@@ -548,76 +548,99 @@ function createRacketShape(inset) {
   return shape;
 }
 
-function createRacket(headColor, name) {
+function createHandleTexture(baseColor, stripeColor1, stripeColor2) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = baseColor;
+  ctx.fillRect(0, 0, 256, 256);
+  
+  ctx.fillStyle = stripeColor1;
+  ctx.fillRect(100, 0, 56, 256);
+  
+  ctx.fillStyle = stripeColor2;
+  ctx.fillRect(70, 0, 12, 256);
+  ctx.fillRect(174, 0, 12, 256);
+  ctx.fillRect(40, 0, 8, 256);
+  ctx.fillRect(208, 0, 8, 256);
+  
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.anisotropy = 4;
+  return tex;
+}
+
+function createRacket(isPlayer, name) {
   const group = new THREE.Group();
   group.name = name;
-  const isPlayer = headColor === 0x2299ff;
 
   const bladeThick = PADDLE_DEPTH;
 
-  // --- Head: egg/oval blade (wood rim) ---
+  // --- Head: egg/oval blade (wood rim + edge tape) ---
   const bladeShape = createRacketShape(0);
-  const extrudeSettings = { depth: bladeThick, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.008, bevelSegments: 2 };
+  const extrudeSettings = { depth: bladeThick, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.002, bevelSegments: 2 };
   const bladeGeo = new THREE.ExtrudeGeometry(bladeShape, extrudeSettings);
   bladeGeo.translate(0, 0, -bladeThick / 2);
+  
   const bladeMat = new THREE.MeshStandardMaterial({
-    color: 0xc8956a, roughness: 0.5, metalness: 0.05
+    color: 0xd2a679, roughness: 0.7, metalness: 0.0
   });
-  const blade = new THREE.Mesh(bladeGeo, bladeMat);
+  const edgeTapeMat = new THREE.MeshStandardMaterial({
+    color: 0x0a1a3a, roughness: 0.8, metalness: 0.1 // dark blue edge tape
+  });
+  const blade = new THREE.Mesh(bladeGeo, [bladeMat, edgeTapeMat]);
   blade.name = name + 'Head';
   blade.castShadow = true;
   group.add(blade);
 
-  // --- Front rubber — inset from blade edge ---
+  // --- Front and Back rubbers ---
   const rubberThick = 0.014;
-  const rubberShape = createRacketShape(0.035);
-  const rubberExtSettings = { depth: rubberThick, bevelEnabled: false };
+  const rubberShape = createRacketShape(0.015);
+  const rubberExtSettings = { depth: rubberThick, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.002, bevelSegments: 2 };
   const rubberGeo = new THREE.ExtrudeGeometry(rubberShape, rubberExtSettings);
 
-  const frontColor = isPlayer ? 0x1166cc : 0xcc2244;
-  const rubberFrontMat = new THREE.MeshStandardMaterial({
-    color: frontColor, roughness: 0.92, metalness: 0.0
+  const rubberRedMat = new THREE.MeshStandardMaterial({
+    color: 0xc81010, roughness: 0.85, metalness: 0.0
   });
-  const rubberFront = new THREE.Mesh(rubberGeo, rubberFrontMat);
+  const rubberBlackMat = new THREE.MeshStandardMaterial({
+    color: 0x181818, roughness: 0.85, metalness: 0.0
+  });
+
+  const frontMat = isPlayer ? rubberRedMat : rubberBlackMat;
+  const backMat = isPlayer ? rubberBlackMat : rubberRedMat;
+
+  const rubberFront = new THREE.Mesh(rubberGeo, frontMat);
   rubberFront.name = name + 'RubberFront';
-  rubberFront.position.z = -(bladeThick / 2 + rubberThick - 0.003);
+  rubberFront.position.z = -(bladeThick / 2 + rubberThick - 0.002);
   group.add(rubberFront);
 
-  // --- Back rubber — black ---
-  const rubberBackMat = new THREE.MeshStandardMaterial({
-    color: 0x1a1a1a, roughness: 0.9, metalness: 0.0
-  });
-  const rubberBack = new THREE.Mesh(rubberGeo.clone(), rubberBackMat);
+  const rubberBack = new THREE.Mesh(rubberGeo, backMat);
   rubberBack.name = name + 'RubberBack';
-  rubberBack.position.z = (bladeThick / 2 - 0.003);
+  rubberBack.position.z = (bladeThick / 2 - 0.002);
   group.add(rubberBack);
 
-  // --- Handle: flared FL-style grip ---
+  // --- Handle: bare wood with flared FL-style grip and stripes ---
   const handleLen = PADDLE_HANDLE_LENGTH;
-  // Neck (top, near blade) is narrow; butt (bottom) flares out
   const neckW = 0.035;
   const neckD = 0.028;
-  const midW = 0.055;   // widest point ~60% down
+  const midW = 0.055;
   const midD = 0.042;
-  const buttW = 0.048;  // slightly narrower at the very end
+  const buttW = 0.048;
   const buttD = 0.038;
-  const hSegs = 12;
+  const hSegs = 32;
 
-  const handleGeo = new THREE.CylinderGeometry(1, 1, handleLen, 12, hSegs, false);
+  const handleGeo = new THREE.CylinderGeometry(1, 1, handleLen, 32, hSegs, false);
   const posAttr = handleGeo.attributes.position;
   for (let i = 0; i < posAttr.count; i++) {
     const y = posAttr.getY(i);
-    const t = THREE.MathUtils.clamp((y + handleLen / 2) / handleLen, 0, 1); // 0=bottom, 1=top
-    // Flare profile: narrow at top (neck), widens to mid, slight taper at butt
+    const t = THREE.MathUtils.clamp((y + handleLen / 2) / handleLen, 0, 1);
     let w, d;
     if (t > 0.4) {
-      // Top 60% — neck to mid flare
-      const s = (t - 0.4) / 0.6; // 0 at mid, 1 at neck
+      const s = (t - 0.4) / 0.6;
       w = THREE.MathUtils.lerp(midW, neckW, s);
       d = THREE.MathUtils.lerp(midD, neckD, s);
     } else {
-      // Bottom 40% — mid flare to butt
-      const s = t / 0.4; // 0 at butt, 1 at mid
+      const s = t / 0.4;
       w = THREE.MathUtils.lerp(buttW, midW, s);
       d = THREE.MathUtils.lerp(buttD, midD, s);
     }
@@ -627,55 +650,35 @@ function createRacket(headColor, name) {
   posAttr.needsUpdate = true;
   handleGeo.computeVertexNormals();
 
+  const handleTex = isPlayer 
+    ? createHandleTexture('#4a4a4a', '#111111', '#cda57d') 
+    : createHandleTexture('#7a1a1a', '#111111', '#e8c396');
+
   const handleMat = new THREE.MeshStandardMaterial({
-    color: 0xb5814a, roughness: 0.55, metalness: 0.05
+    map: handleTex, roughness: 0.6, metalness: 0.05
   });
   const handle = new THREE.Mesh(handleGeo, handleMat);
   handle.name = name + 'Handle';
-  // Bottom of egg shape (chin) is narrower — connect handle there
   const headBottom = -(PADDLE_WIDTH / 2 - 0.12) * 0.92;
   handle.position.y = headBottom - handleLen / 2 + 0.01;
   handle.castShadow = true;
   group.add(handle);
 
-  // --- Grip wrap — covers lower 75% of handle ---
-  const gripLen = handleLen * 0.75;
-  const gripGeo = new THREE.CylinderGeometry(1, 1, gripLen, 12, hSegs, false);
-  const gripPosAttr = gripGeo.attributes.position;
-  for (let i = 0; i < gripPosAttr.count; i++) {
-    const y = gripPosAttr.getY(i);
-    const tGrip = THREE.MathUtils.clamp((y + gripLen / 2) / gripLen, 0, 1);
-    // Map grip t to handle t (grip covers bottom 75% of handle, so t 0..0.75)
-    const tHandle = tGrip * 0.75;
-    let w, d;
-    if (tHandle > 0.4) {
-      const s = (tHandle - 0.4) / 0.6;
-      w = THREE.MathUtils.lerp(midW, neckW, s);
-      d = THREE.MathUtils.lerp(midD, neckD, s);
-    } else {
-      const s = tHandle / 0.4;
-      w = THREE.MathUtils.lerp(buttW, midW, s);
-      d = THREE.MathUtils.lerp(buttD, midD, s);
-    }
-    // Slightly larger than bare handle
-    gripPosAttr.setX(i, gripPosAttr.getX(i) * (w + 0.005));
-    gripPosAttr.setZ(i, gripPosAttr.getZ(i) * (d + 0.004));
-  }
-  gripPosAttr.needsUpdate = true;
-  gripGeo.computeVertexNormals();
+  // Small embedded yellow logo on handle
+  const logoGeo = new THREE.BoxGeometry(0.012, 0.02, 0.004);
+  const logoMat = new THREE.MeshStandardMaterial({ color: 0xeecc00, roughness: 0.4, metalness: 0.6 });
+  const logo1 = new THREE.Mesh(logoGeo, logoMat);
+  logo1.position.set(0, handle.position.y + 0.06, 0.036);
+  group.add(logo1);
+  
+  const logo2 = new THREE.Mesh(logoGeo, logoMat);
+  logo2.position.set(0, handle.position.y + 0.06, -0.036);
+  group.add(logo2);
 
-  const gripMat = new THREE.MeshStandardMaterial({
-    color: 0x1a1a22, roughness: 0.95, metalness: 0.0
-  });
-  const grip = new THREE.Mesh(gripGeo, gripMat);
-  grip.name = name + 'Grip';
-  grip.position.y = handle.position.y - (handleLen - gripLen) / 2;
-  group.add(grip);
-
-  // --- Rounded end cap ---
-  const capGeo = new THREE.SphereGeometry(buttW, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+  // Rounded end cap
+  const capGeo = new THREE.SphereGeometry(buttW, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
   capGeo.scale(1, 0.6, buttD / buttW);
-  const cap = new THREE.Mesh(capGeo, gripMat);
+  const cap = new THREE.Mesh(capGeo, handleMat);
   cap.name = name + 'Cap';
   cap.rotation.x = Math.PI;
   cap.position.y = handle.position.y - handleLen / 2;
@@ -684,11 +687,11 @@ function createRacket(headColor, name) {
   return group;
 }
 
-const playerPaddle = createRacket(0x2299ff, 'playerPaddle');
+const playerPaddle = createRacket(true, 'playerPaddle');
 playerPaddle.position.set(0, TABLE_Y + TABLE_HEIGHT / 2 + PADDLE_WIDTH / 2 + 0.15, TABLE_LENGTH / 2 - 0.3);
 scene.add(playerPaddle);
 
-const aiPaddle = createRacket(0xff4466, 'aiPaddle');
+const aiPaddle = createRacket(false, 'aiPaddle');
 aiPaddle.position.set(0, TABLE_Y + TABLE_HEIGHT / 2 + PADDLE_WIDTH / 2 + 0.45, -TABLE_LENGTH / 2 + 0.3);
 scene.add(aiPaddle);
 
@@ -1248,12 +1251,13 @@ const themes = [
 
 function applyPaddleSkin(paddle, skin) {
   paddle.children.forEach(child => {
+    const mat = Array.isArray(child.material) ? child.material[0] : child.material;
     if (child.name.includes('Head')) {
-      child.material.color.set(skin.head);
+      mat.color.set(skin.head);
     } else if (child.name.includes('RubberFront')) {
-      child.material.color.set(skin.rubber);
+      mat.color.set(skin.rubber);
     } else if (child.name.includes('RubberBack')) {
-      child.material.color.set(skin.back);
+      mat.color.set(skin.back);
     }
   });
 }
@@ -1304,14 +1308,16 @@ const themeLerpCurrent = new THREE.Color();
 
 function captureCurrentColors(target) {
   playerPaddle.children.forEach(child => {
-    if (child.name.includes('Head')) target.playerHead.copy(child.material.color);
-    else if (child.name.includes('RubberFront')) target.playerRubber.copy(child.material.color);
-    else if (child.name.includes('RubberBack')) target.playerBack.copy(child.material.color);
+    const mat = Array.isArray(child.material) ? child.material[0] : child.material;
+    if (child.name.includes('Head')) target.playerHead.copy(mat.color);
+    else if (child.name.includes('RubberFront')) target.playerRubber.copy(mat.color);
+    else if (child.name.includes('RubberBack')) target.playerBack.copy(mat.color);
   });
   aiPaddle.children.forEach(child => {
-    if (child.name.includes('Head')) target.aiHead.copy(child.material.color);
-    else if (child.name.includes('RubberFront')) target.aiRubber.copy(child.material.color);
-    else if (child.name.includes('RubberBack')) target.aiBack.copy(child.material.color);
+    const mat = Array.isArray(child.material) ? child.material[0] : child.material;
+    if (child.name.includes('Head')) target.aiHead.copy(mat.color);
+    else if (child.name.includes('RubberFront')) target.aiRubber.copy(mat.color);
+    else if (child.name.includes('RubberBack')) target.aiBack.copy(mat.color);
   });
   target.tableSurface.copy(tableMat.color);
   target.tableClearcoat = tableMat.clearcoat;
@@ -4005,14 +4011,16 @@ function applyLerpedTheme(t) {
   const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
   playerPaddle.children.forEach(child => {
-    if (child.name.includes('Head')) child.material.color.copy(themeLerpCurrent.copy(themeLerpFrom.playerHead).lerp(themeLerpTo.playerHead, e));
-    else if (child.name.includes('RubberFront')) child.material.color.copy(themeLerpCurrent.copy(themeLerpFrom.playerRubber).lerp(themeLerpTo.playerRubber, e));
-    else if (child.name.includes('RubberBack')) child.material.color.copy(themeLerpCurrent.copy(themeLerpFrom.playerBack).lerp(themeLerpTo.playerBack, e));
+    const mat = Array.isArray(child.material) ? child.material[0] : child.material;
+    if (child.name.includes('Head')) mat.color.copy(themeLerpCurrent.copy(themeLerpFrom.playerHead).lerp(themeLerpTo.playerHead, e));
+    else if (child.name.includes('RubberFront')) mat.color.copy(themeLerpCurrent.copy(themeLerpFrom.playerRubber).lerp(themeLerpTo.playerRubber, e));
+    else if (child.name.includes('RubberBack')) mat.color.copy(themeLerpCurrent.copy(themeLerpFrom.playerBack).lerp(themeLerpTo.playerBack, e));
   });
   aiPaddle.children.forEach(child => {
-    if (child.name.includes('Head')) child.material.color.copy(themeLerpCurrent.copy(themeLerpFrom.aiHead).lerp(themeLerpTo.aiHead, e));
-    else if (child.name.includes('RubberFront')) child.material.color.copy(themeLerpCurrent.copy(themeLerpFrom.aiRubber).lerp(themeLerpTo.aiRubber, e));
-    else if (child.name.includes('RubberBack')) child.material.color.copy(themeLerpCurrent.copy(themeLerpFrom.aiBack).lerp(themeLerpTo.aiBack, e));
+    const mat = Array.isArray(child.material) ? child.material[0] : child.material;
+    if (child.name.includes('Head')) mat.color.copy(themeLerpCurrent.copy(themeLerpFrom.aiHead).lerp(themeLerpTo.aiHead, e));
+    else if (child.name.includes('RubberFront')) mat.color.copy(themeLerpCurrent.copy(themeLerpFrom.aiRubber).lerp(themeLerpTo.aiRubber, e));
+    else if (child.name.includes('RubberBack')) mat.color.copy(themeLerpCurrent.copy(themeLerpFrom.aiBack).lerp(themeLerpTo.aiBack, e));
   });
   tableMat.color.copy(themeLerpCurrent.copy(themeLerpFrom.tableSurface).lerp(themeLerpTo.tableSurface, e));
   tableMat.clearcoat = THREE.MathUtils.lerp(themeLerpFrom.tableClearcoat, themeLerpTo.tableClearcoat, e);
@@ -5600,7 +5608,7 @@ const welcomePlayBtn = document.createElement('button');
 welcomePlayBtn.className = 'wc-play';
 welcomePlayBtn.textContent = 'Start Sequence';
 
-let welcomeDismissed = false;
+var welcomeDismissed = false;
 function dismissWelcome() {
   if (welcomeDismissed) return;
   welcomeDismissed = true;
