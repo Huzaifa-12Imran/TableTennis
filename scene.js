@@ -5218,7 +5218,9 @@ function animate() {
   const maxTiltX = 0.4;  // max forward/back tilt in radians (~23°)
   const tiltSensitivity = 18;
 
-  const playerTargetTiltZ = THREE.MathUtils.clamp(-smoothMouseVelX * tiltSensitivity, -maxTiltZ, maxTiltZ);
+  // Combine mouse velocity tilt with a positional base tilt (slants handles inwards like an arch)
+  const baseTiltZ = playerPaddle.position.x * 0.15;
+  const playerTargetTiltZ = THREE.MathUtils.clamp(baseTiltZ - smoothMouseVelX * tiltSensitivity, -maxTiltZ, maxTiltZ);
   const playerTargetTiltX = THREE.MathUtils.clamp(smoothMouseVelY * tiltSensitivity, -maxTiltX, maxTiltX);
 
   // Face towards the center of the table based on horizontal position
@@ -5229,8 +5231,8 @@ function animate() {
   playerPaddle.rotation.z += (playerTargetTiltZ - playerPaddle.rotation.z) * 0.2;
   playerPaddle.rotation.x += (playerTargetTiltX - playerPaddle.rotation.x) * 0.2;
 
-  // AI paddle tilt mirrors its movement and faces inward
-  const aiTiltZ = (aiPaddle.position.x - prevAiX) * 0.5;
+  // AI paddle tilt mirrors its movement and slants inward
+  const aiTiltZ = (aiPaddle.position.x - prevAiX) * 0.5 + aiPaddle.position.x * 0.15;
   const aiTiltX = (aiPaddle.position.z - prevPlayerZ) * -0.3;
   const aiTargetTiltY = THREE.MathUtils.clamp(aiPaddle.position.x * 0.12, -maxTiltY, maxTiltY);
   
